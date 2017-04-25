@@ -185,14 +185,18 @@ class pusher(object):
 		(mongo_client, mongo_database) = self.connect_mongo(job_config['MONGO_DB'])
 		mongo_collection = eval('mongo_database.' + job_config['MONGO_COLLECTION'])
 		count = mongo_collection.count()
-		count = 100
+		# count = 100
 		start, step = 0, 10
+		# company_set = set()
 		while start < count:
 			print(start)
 			this_loop_records = mongo_collection.find().limit(step).skip(start)
 			for i in this_loop_records:
 				i['_id'] = str(i['_id'])
-				redis_conn.rpush(job_config['PUSH_REDIS_KEY'], json.dumps(i))
+				# if i.get('company_name','') and i['company_name'] not in company_set:
+				if i.get('company_name',''):
+					# company_set.add(i['company_name'])
+					redis_conn.rpush(job_config['PUSH_REDIS_KEY'], json.dumps(i))
 			start += step
 		mongo_client.close()
 
