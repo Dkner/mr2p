@@ -11,13 +11,13 @@ class Company2b(pusher):
 	def __init__(self, job):
 		pusher.__init__(self, job)
 
-	async def pre_trans(self, data):
+	async def pre_trans(self, session, data):
 		if 'logo_url' in data:
-			data['logo_url'] = await self.change_url(data['logo_url'])
+			data['logo_url'] = await self.change_url(session, data['logo_url'])
 		if 'product_url' in data:
-			data['product_url'] = await self.change_url(data['product_url'])
+			data['product_url'] = await self.change_url(session, data['product_url'])
 		if 'rival_companies' in data:
-			data['rival_companies'] = await self.change_rival_companies(data['rival_companies'])
+			data['rival_companies'] = await self.change_rival_companies(session, data['rival_companies'])
 		if not 'multi_content' in data:
 			multi_content = []
 			if 'industries' in data and data['industries']:
@@ -36,22 +36,22 @@ class Company2b(pusher):
 		except Exception as e:
 			return ''
 
-	async def change_url(self, url):
-		binary_pic = await self.download_from_camfs('10005_'+url)
+	async def change_url(self, session, url):
+		binary_pic = await self.download_from_camfs(session, '10005_'+url)
 		if not binary_pic:
 			return ''
 		else:
-			url = await self.upload_pic_2b(binary_pic)
+			url = await self.upload_pic_2b(session, binary_pic)
 			if not url:
 				return ''
 			else:
 				return url
 
-	async def change_rival_companies(self, opponets=[]):
+	async def change_rival_companies(self, session, opponets=[]):
 		rival_companies_after = []
 		for i in opponets:
 			# company_info = self.fuzzySuggestCorpName(i)
-			company_info = await self.getSummaryByName(i)
+			company_info = await self.getSummaryByName(session, i)
 			if not company_info:
 				continue
 			# rival_companies_after.append(company_info['id'])
