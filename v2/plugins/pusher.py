@@ -50,11 +50,6 @@ class pusher(object):
 		self.config.import_internal_config(job)
 		self.config.print_config()
 
-		# refresh config
-		# config_listener = threading.Thread(target=self.config.update_config)
-		# config_listener.setDaemon(True)
-		# config_listener.start()
-
 		self._lcurl = Lcurl()
 		self._logger = Nlog()
 
@@ -121,12 +116,16 @@ class pusher(object):
 		output = {}
 		func_service = FUNCBOX()
 		try:
-			for (k, (v, func_name)) in map.items():
+			for (k, (v, func_name, must_or_not)) in map.items():
 				kw = {"value": v, "new": input, "instance": self, "method": func_name}
 				try:
 					col = getattr(func_service, func_name)(**kw)
+					if not col and int(must_or_not)==1:
+						return False
 					output[k] = col
 				except Exception as e:
+					if int(must_or_not)==1:
+						return False
 					output[k] = exception_default
 					# print('[Trans %s Error] %s' % (k,e))
 			return output

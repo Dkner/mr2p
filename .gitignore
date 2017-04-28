@@ -1,6 +1,2 @@
-v2/.idea/*
-v1/.idea/*
+*.xml
 .idea/*
-v1/.idea/workspace.xml
-v2/.idea/workspace.xml
-v2/.idea/workspace.xml

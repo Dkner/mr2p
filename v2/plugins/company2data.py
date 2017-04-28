@@ -62,8 +62,8 @@ class Company2data(pusher):
 		curl = Lcurl()
 		data = {"document":document}
 		ret = await curl.post(session=session, url=url, data=json.dumps(data), headers={"Content-Type":"application/json"})
-		with open('data/test.log','a+') as f:
-			f.write(json.dumps(ret)+"\n")
+		# with open('data/test.log','a+') as f:
+		# 	f.write(json.dumps(ret)+"\n")
 		if not ret:
 			return False
 		if ret['code'] == 0:
