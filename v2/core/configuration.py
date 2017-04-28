@@ -51,10 +51,10 @@ class Configuration(Singleton):
                 self.CONFIG['GLOBAL'] = ret['list'][-1]['conf']
                 # self.CONFIG['GLOBAL']['update_time'] = ret['list'][-1]['update_time']
             else:
-                print('[CONFIG ERROR] config import error')
+                print('[CONFIG ERROR] global config import error')
                 exit(-1)
         except Exception as e:
-            print('[CONFIG ERROR] config import: %s'%e)
+            print('[CONFIG ERROR] global config import: %s'%e)
             exit(-1)
 
     def import_internal_config(self, job_name):
@@ -66,10 +66,10 @@ class Configuration(Singleton):
                 self.CONFIG['DATA_MAP'] = ret['list'][-1]['conf']
                 # self.CONFIG['DATA_MAP']['update_time'] = ret['list'][-1]['update_time']
             else:
-                print('[ERROR] config import error')
+                print('[ERROR] internal config import error')
                 exit(-1)
         except Exception as e:
-            print('[CONFIG ERROR] config import: %s' % e)
+            print('[CONFIG ERROR] internal config import: %s' % e)
             exit(-1)
 
     def import_demo_config(self, env):
