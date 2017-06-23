@@ -40,7 +40,7 @@ class Company2data(pusher):
     @stat
     @write_back('2data_pushed')
     async def process(self, data):
-        LOG.info('company2data process {}'.format(json.dumps(data)))
+        LOG.info('company2data process {}'.format(data))
         config = self.config
         if config.ENV == 'DEV':
             return True
@@ -137,22 +137,24 @@ class Kr2data(Company2data):
                     new_item = {}
                     for key, value in key_trans.items():
                         try:
-                            item[value] = item.pop(key)
+                            new_item[value] = item.pop(key)
                         except Exception as e:
                             pass
                     data['finance_history'].append(new_item)
         if data.get('similar', None):
             data['similar'] = json.loads(data['similar'])
             if isinstance(data['similar'], list):
-                data['opponents_products'] = [opponent['name'] for opponent in data['similar'] if opponent.get('name', None)]
+                data['opponents_products'] = []
+                for opponent in data['similar']:
+                    if isinstance(opponent['companyList'], list):
+                        data['opponents_products'].extend([opponent_company['name'] for opponent_company in opponent['companyList'] if opponent_company.get('name', None)])
+                data['opponents_products'] = list(set(data['opponents_products']))
 
     @stat
     @write_back('2data_pushed')
     async def process(self, data):
-        LOG.info('company2data process {}'.format(json.dumps(data)))
+        LOG.info('Kr2data process {}'.format(data))
         config = self.config
-        if config.ENV == 'DEV':
-            return True
         async with aiohttp.ClientSession() as session:
             self.pre_trans(session, data)
             # 上传公司

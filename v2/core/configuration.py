@@ -84,7 +84,7 @@ class Configuration(metaclass=Singleton):
         self.JOB = ''
 
     def print_config(self):
-        logging.error("[ENVIRONMENT] %s\n[NAME] %s\n[JOB] %s\n[CONFIG] %s" % (self.ENV, self.NAME, self.JOB, self.CONFIG))
+        logging.info("[ENVIRONMENT] %s\n[NAME] %s\n[JOB] %s\n[CONFIG] %s" % (self.ENV, self.NAME, self.JOB, self.CONFIG))
 
 # if __name__ == '__main__':
 #     import sys, getopt
