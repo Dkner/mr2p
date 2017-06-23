@@ -2,14 +2,13 @@ import json
 import time
 from plugins.pusher import pusher, stat, write_back
 from core.lcurl import Lcurl
-import asyncio
 import aiohttp
 
 
 class Company2b(pusher):
 
 	def __init__(self, job):
-		pusher.__init__(self, job)
+		super().__init__(job=job)
 
 	async def pre_trans(self, session, data):
 		if 'logo_url' in data:

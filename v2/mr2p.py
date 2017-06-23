@@ -1,6 +1,7 @@
 import os
 import sys
 import getopt
+import logging
 is_py2 = sys.version[0] == '2'
 from core.configuration import Configuration
 from core.scheduler import scheduler
@@ -35,4 +36,4 @@ if __name__ == '__main__':
 	if env != '':
 		main(env)
 	else:
-		print('[ERROR] lack env config')
+		logging.error('lack env config')

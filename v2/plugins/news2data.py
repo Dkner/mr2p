@@ -1,8 +1,6 @@
 import json
-import time
 from plugins.pusher import pusher, stat, write_back
 from core.lcurl import Lcurl
-import asyncio
 import aiohttp
 
 
@@ -12,10 +10,11 @@ class News2data(pusher):
 		pusher.__init__(self, job)
 
 	async def pre_trans(self, session, data):
-		if data.get('link',''):
-			data['html'] = await self.get_raw(session, data['link'])
-		elif data.get('url',''):
-			data['html'] = await self.get_raw(session, data['url'])
+		if not data.get('content'):
+			if data.get('link',''):
+				data['html'] = await self.get_raw(session, data['link'], 30000)
+			elif data.get('url',''):
+				data['html'] = await self.get_raw(session, data['url'], 30000)
 
 	@stat
 	@write_back('2data_pushed')
@@ -36,6 +35,7 @@ class News2data(pusher):
 		curl = Lcurl()
 		data = {"records":[{"value":document}]}
 		ret = await curl.post(session=session, url=url, data=json.dumps(data), headers={"Content-Type":"application/vnd.kafka.json.v1+json"}, do_log=False)
+		print('upload_news=========',ret)
 		# with open('data/test.log','a+') as f:
 		# 	f.write(json.dumps(ret)+"\n")
 		if not ret:

@@ -1,8 +1,8 @@
 import sys
 # import requests
-import urllib
 from core.nlog import Nlog
 is_py2 = sys.version[0] == '2'
+import logging
 import asyncio
 import aiohttp
 import async_timeout
@@ -31,7 +31,7 @@ class Lcurl(object):
         except Exception as e:
             if do_log:
                 self._logger.send_api_log(url, params, e)
-            print(e)
+            logging.error(e)
             return False
 
     async def post(self, session='', url='', data='', do_log=True, headers={}, response_type='json'):
@@ -53,5 +53,5 @@ class Lcurl(object):
         except Exception as e:
             if do_log:
                 self._logger.send_api_log(url, data, e)
-            print(e)
+            logging.error(e)
             return False

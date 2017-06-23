@@ -3,6 +3,7 @@ import socket
 import struct
 import time
 import json
+import logging
 from core.configuration import Configuration
 is_py2 = sys.version[0] == '2'
 
@@ -37,7 +38,7 @@ class Nlog(object):
 			else:
 				ret = s.sendto(bytes(this_log, 'utf-8'), addr)
 		except Exception as e:
-			print(e)
+			logging.error(e)
 			return False
 		s.close()
 		return True

@@ -3,6 +3,7 @@ from bson import ObjectId
 from core.header import *
 from core.nlog import Nlog
 from core.lcurl import Lcurl
+from functools import wraps
 from core.funcbox import FUNCBOX
 from core.configuration import Configuration
 import asyncio
@@ -11,6 +12,7 @@ POP_TIMEOUT = 60
 
 # monitor
 def stat(func):
+	@wraps(func)
 	def wrapper(*args, **kw):
 		ret = func(*args, **kw)
 		self = args[0]
@@ -21,6 +23,7 @@ def stat(func):
 # write back push flag
 def write_back(flag_name):
 	def decorator(func):
+		@wraps(func)
 		def wrapper(*args, **kw):
 			ret = func(*args, **kw)
 			if ret:
@@ -55,7 +58,6 @@ class pusher(object):
 
 		try:
 			pull_strategy = self.config.CONFIG['GLOBAL']['JOB'][job]['PULL_STRATEGY']
-			print('[PULL STRATEGY] %s' % pull_strategy)
 			if pull_strategy is not None:
 				pull_method = eval('self.pull_from_' + pull_strategy)
 				setattr(self, 'pull', pull_method)
@@ -127,7 +129,6 @@ class pusher(object):
 					if int(must_or_not)==1:
 						return False
 					output[k] = exception_default
-					# print('[Trans %s Error] %s' % (k,e))
 			return output
 		except Exception as e:
 			print(e)
@@ -146,7 +147,7 @@ class pusher(object):
 			try:
 				await self.process(data)
 			except Exception as e:
-				print('Unknown Error: %s' % e)
+				print('Error during data processing: %s' % e)
 			finally:
 				pass
 
@@ -184,7 +185,7 @@ class pusher(object):
 		(mongo_client, mongo_database) = self.connect_mongo(job_config['MONGO_DB'])
 		mongo_collection = eval('mongo_database.' + job_config['MONGO_COLLECTION'])
 		count = mongo_collection.count()
-		start, step = 0, 10
+		start, step = 0, 50
 		# company_set = set()
 		while start < count:
 			print(start)
@@ -293,10 +294,12 @@ class pusher(object):
 			return False
 		return ret['url']
 
-	async def get_raw(self, session, url):
+	async def get_raw(self, session, url, len=0):
 		if not url:
 			return False
 		ret = await self._lcurl.get(session=session, url=url, do_log=False, response_type='text')
+		if len>0 and ret:
+			ret = ret[:len]
 		return ret
 	'''
 		api func end
