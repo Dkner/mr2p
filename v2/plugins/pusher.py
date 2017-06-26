@@ -7,6 +7,8 @@ from functools import wraps
 from core.funcbox import FUNCBOX
 from core.configuration import Configuration
 import asyncio
+from core.connection_factory import ConnectionFactory
+from core.logger import LOG
 
 POP_TIMEOUT = 60
 
@@ -55,6 +57,7 @@ class pusher(object):
 
         self._lcurl = Lcurl()
         self._logger = Nlog()
+        self._loop = None
 
         try:
             pull_strategy = self.config.CONFIG['GLOBAL']['JOB'][job]['PULL_STRATEGY']
@@ -66,10 +69,11 @@ class pusher(object):
 
     # data pull strategy
     def pull_from_mongo(self):
-        (mongo_client, mongo_database) = self.connect_mongo(self.config.CONFIG['GLOBAL']['JOB'][self.job]['MONGO_DB'])
-        if not mongo_client:
+        job_config = self.config.CONFIG['GLOBAL']['JOB'][self.job]
+        mongo_instance = ConnectionFactory.get_mongo_connection(db=job_config['MONGO_DB'],  **self.config.CONFIG['GLOBAL']['MONGO'])
+        if not mongo_instance:
             raise NetworkError("cannot connect to mongo server")
-        mongo_collection = eval('mongo_database.' + self.config.CONFIG['GLOBAL']['JOB'][self.job]['MONGO_COLLECTION'])
+        mongo_collection = eval('mongo_instance.db.{}'.format(job_config['MONGO_COLLECTION']))
         # total number to process
         count = mongo_collection.count()
         # loop start and loop range, related to the memory consumed
@@ -79,40 +83,41 @@ class pusher(object):
             for i in this_loop_records:
                 yield i
             start += step
-        mongo_client.close()
+        mongo_instance.connection.close()
         raise FinishedError('finished')
 
     def pull_from_redis(self):
         push_redis_key = self.config.CONFIG['GLOBAL']['JOB'][self.job]['PUSH_REDIS_KEY']
-        redis_conn = self.connect_redis()
-        if not redis_conn or not redis_conn.ping():
+        redis_instance = ConnectionFactory.get_redis_connection(**self.config.CONFIG['GLOBAL']['REDIS'])
+        redis_conn = redis_instance.connection
+        if not redis_conn:
             raise NetworkError("cannot connect to redis server")
         while True:
             record = redis_conn.blpop(push_redis_key, POP_TIMEOUT)
             if record is None:
-                print('redis time out')
+                LOG.info('redis time out')
                 continue
                 # raise FinishedError('finished')
             data = json.loads(record[1])
             yield data
 
-    def connect_mongo(self, dbname):
-        mongo_config = self.config.CONFIG['GLOBAL']['MONGO']
-        if not mongo_config or not 'host' in mongo_config or not 'port' in mongo_config or not 'user' in mongo_config or not 'password' in mongo_config:
-            return False
-        conn = pymongo.MongoClient(mongo_config['host'], int(mongo_config['port']))
-        db = eval("conn."+dbname)
-        ret = db.authenticate(mongo_config['user'], mongo_config['password'], dbname)
-        if False == ret:
-            return (conn, False)
-        return (conn, db)
-
-    def connect_redis(self):
-        redis_config = self.config.CONFIG['GLOBAL']['REDIS']
-        if not redis_config or not 'host' in redis_config or not 'port' in redis_config or not 'db' in redis_config:
-            return False
-        connection = redis.Redis(host=redis_config['host'], port=int(redis_config['port']), db=int(redis_config['db']), password=redis_config['password'])
-        return connection
+    # def connect_mongo(self, dbname):
+    #     mongo_config = self.config.CONFIG['GLOBAL']['MONGO']
+    #     if not mongo_config or not 'host' in mongo_config or not 'port' in mongo_config or not 'user' in mongo_config or not 'password' in mongo_config:
+    #         return False
+    #     conn = pymongo.MongoClient(mongo_config['host'], int(mongo_config['port']))
+    #     db = eval("conn."+dbname)
+    #     ret = db.authenticate(mongo_config['user'], mongo_config['password'], dbname)
+    #     if False == ret:
+    #         return (conn, False)
+    #     return (conn, db)
+    #
+    # def connect_redis(self):
+    #     redis_config = self.config.CONFIG['GLOBAL']['REDIS']
+    #     if not redis_config or not 'host' in redis_config or not 'port' in redis_config or not 'db' in redis_config:
+    #         return False
+    #     connection = redis.Redis(host=redis_config['host'], port=int(redis_config['port']), db=int(redis_config['db']), password=redis_config['password'])
+    #     return connection
 
     def trans(self, input, map, exception_default=''):
         output = {}
@@ -123,19 +128,21 @@ class pusher(object):
                 try:
                     col = getattr(func_service, func_name)(**kw)
                     if not col and int(must_or_not)==1:
+                        LOG.error('trans {} to column [{}] failed'.format(v, k))
                         return False
                     output[k] = col
                 except Exception as e:
                     if int(must_or_not)==1:
+                        LOG.error('trans {} to column [{}] failed'.format(v, k))
                         return False
                     output[k] = exception_default
             return output
         except Exception as e:
-            print(e)
+            LOG.error(e)
             return False
 
     async def worker(self, redis_conn):
-        print('Start worker')
+        LOG.info('Start worker')
         push_redis_key = self.config.CONFIG['GLOBAL']['JOB'][self.job]['PUSH_REDIS_KEY']
 
         while True:
@@ -147,26 +154,28 @@ class pusher(object):
             try:
                 await self.process(data)
             except Exception as e:
-                print('Error during data processing: %s' % e)
+                LOG.error('Error during data processing: %s' % e)
             finally:
                 pass
 
     def run(self):
-        redis_conn = self.connect_redis()
-        if not redis_conn or not redis_conn.ping():
-            raise NetworkError("cannot connect to redis server")
+        redis_instance = ConnectionFactory.get_redis_connection(**self.config.CONFIG['GLOBAL']['REDIS'])
+        redis_conn = redis_instance.connection
+        if not redis_conn: raise NetworkError("cannot connect to redis server")
         task_config = self.config.CONFIG['GLOBAL']['JOB']
         processor_num = int(task_config[self.job].get('PROCESSOR_NUM', 1))
+
+        # 事件循环
+        self._loop = asyncio.get_event_loop()
         for i in range(processor_num):
             asyncio.ensure_future(self.worker(redis_conn))
-        loop = asyncio.get_event_loop()
         try:
-            loop.run_forever()
+            self._loop.run_forever()
         except KeyboardInterrupt as e:
             print(asyncio.gather(*asyncio.Task.all_tasks()).cancel())
             # loop.run_until_complete(loop.shutdown_asyncgens())
         finally:
-            loop.close()
+            self._loop.close()
 
 
     # replaced by pull_from_xxx
@@ -175,15 +184,15 @@ class pusher(object):
 
     # extended by son object
     def process(self, event):
-        print(event)
         return True
 
     @count_second
     def mongo2redis(self):
         job_config = self.config.CONFIG['GLOBAL']['JOB'][self.job]
-        redis_conn = self.connect_redis()
-        (mongo_client, mongo_database) = self.connect_mongo(job_config['MONGO_DB'])
-        mongo_collection = eval('mongo_database.' + job_config['MONGO_COLLECTION'])
+        redis_instance = ConnectionFactory.get_redis_connection(**self.config.CONFIG['GLOBAL']['REDIS'])
+        redis_conn = redis_instance.connection
+        mongo_instance = ConnectionFactory.get_mongo_connection(db=job_config['MONGO_DB'], **self.config.CONFIG['GLOBAL']['MONGO'])
+        mongo_collection = eval('mongo_instance.db.{}'.format(job_config['MONGO_COLLECTION']))
         count = mongo_collection.count()
         start, step = 0, 50
         # company_set = set()
@@ -197,12 +206,13 @@ class pusher(object):
                     # company_set.add(i['company_name'])
                 redis_conn.rpush(job_config['PUSH_REDIS_KEY'], json.dumps(i))
             start += step
-        mongo_client.close()
+        mongo_instance.connection.close()
 
     def stat_by_redis(self, ret):
-        redis_conn = self.connect_redis()
-        if not redis_conn or not redis_conn.ping():
-            print("cannot connect to redis server")
+        redis_instance = ConnectionFactory.get_redis_connection(**self.config.CONFIG['GLOBAL']['REDIS'])
+        redis_conn = redis_instance.connection
+        if not redis_conn:
+            LOG.error("cannot connect to redis server")
             return False
         push_redis_key = self.config.CONFIG['GLOBAL']['JOB'][self.job]['PUSH_REDIS_KEY']
         stat_key = push_redis_key + '_stat_' + datetime.datetime.now().strftime("%Y-%m-%d")
@@ -232,10 +242,10 @@ class pusher(object):
         if not ret or not isinstance(data, dict) or not '_id' in data:
             return False
         job_config = self.config.CONFIG['GLOBAL']['JOB'][self.job]
-        (mongo_client, mongo_database) = self.connect_mongo(job_config['MONGO_DB'])
-        mongo_collection = eval('mongo_database.' + job_config['MONGO_COLLECTION'])
+        mongo_instance = ConnectionFactory.get_mongo_connection(db=job_config['MONGO_DB'], **self.config.CONFIG['GLOBAL']['MONGO'])
+        mongo_collection = eval('mongo_instance.db.{}'.format(job_config['MONGO_COLLECTION']))
         ret = mongo_collection.update_one({'_id': ObjectId(data['_id'])}, {"$set": {flag_name: 1}})
-        mongo_client.close()
+        mongo_instance.connection.close()
         return ret
 
     '''
@@ -258,7 +268,7 @@ class pusher(object):
             else:
                 return False
         except Exception as e:
-            print('[fuzzySuggestCorpName ERROR] %s' % e)
+            LOG.error('[fuzzySuggestCorpName ERROR] %s' % e)
             return False
 
     async def getSummaryByName(self, session, name):

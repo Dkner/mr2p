@@ -44,7 +44,7 @@ class Company2data(pusher):
         config = self.config
         if config.ENV == 'DEV':
             return True
-        async with aiohttp.ClientSession() as session:
+        async with aiohttp.ClientSession(loop=self._loop) as session:
             if 'corp_category' in data and int(data['corp_category']) != 1:
                 LOG.warning('for job[{}], corp_category is invalid in {}'.format(self.job, data))
                 return False
@@ -155,7 +155,7 @@ class Kr2data(Company2data):
     async def process(self, data):
         LOG.info('Kr2data process {}'.format(data))
         config = self.config
-        async with aiohttp.ClientSession() as session:
+        async with aiohttp.ClientSession(loop=self._loop) as session:
             self.pre_trans(session, data)
             # 上传公司
             company_increment_output = self.trans(data, config.CONFIG['DATA_MAP']['trans_company_increment_map'], None)

@@ -22,7 +22,7 @@ class News2data(pusher):
 		print('news2data process')
 		if self.config.ENV == 'DEV':
 			return True
-		async with aiohttp.ClientSession() as session:
+		async with aiohttp.ClientSession(loop=self._loop) as session:
 			await self.pre_trans(session, data)
 			news_output = self.trans(data, self.config.CONFIG['DATA_MAP'])
 			ret = await self.upload_news(session, news_output)

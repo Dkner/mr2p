@@ -63,7 +63,7 @@ class Company2b(pusher):
 		print('company2b process')
 		if self.config.ENV == 'DEV':
 			return True
-		async with aiohttp.ClientSession() as session:
+		async with aiohttp.ClientSession(loop=self._loop) as session:
 			if not 'company_name' in data or not data.get('logo_url','') or not data.get('product_url','') or ('corp_category' in data and int(data['corp_category']) != 1) or int(data.get('2b_pushed', 0))==1:
 				return False
 			company_info = await self.getSummaryByName(session, data['company_name'])

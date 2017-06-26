@@ -3,10 +3,11 @@ import logging
 # create logger
 logger_name = "MR2P"
 LOG = logging.getLogger(logger_name)
+LOG.setLevel(logging.DEBUG)
 
 # create handler
 fh = logging.StreamHandler()
-fh.setLevel(logging.WARN)
+fh.setLevel(logging.DEBUG)
 
 # create formatter
 fmt = "%(asctime)-15s %(levelname)s %(filename)s %(lineno)d %(process)d %(message)s"
