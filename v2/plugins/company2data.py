@@ -3,6 +3,7 @@ import time
 from plugins.pusher import pusher, stat, write_back
 from core.lcurl import Lcurl
 from core.logger import LOG
+import asyncio
 import aiohttp
 
 
@@ -151,7 +152,7 @@ class Kr2data(Company2data):
                 data['opponents_products'] = list(set(data['opponents_products']))
 
     @stat
-    @write_back('2data_pushed')
+    # @write_back('2data_pushed')
     async def process(self, data):
         LOG.info('Kr2data process {}'.format(data))
         config = self.config

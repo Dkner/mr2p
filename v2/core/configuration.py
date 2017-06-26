@@ -1,6 +1,6 @@
 import json
 import time
-import logging
+from core.logger import LOG
 from collections import defaultdict
 
 import requests
@@ -33,16 +33,16 @@ class Configuration(metaclass=Singleton):
                 if isinstance(ret, dict) and ret['count']>0:
                     self.CONFIG['GLOBAL'] = ret['list'][-1]['conf']
                 else:
-                    logging.error('[CONFIG ERROR] global config update fail')
+                    LOG.error('[CONFIG ERROR] global config update fail')
                 # update internal config
                 r = requests.post(url=CONFIG_API[self.ENV], data=json.dumps({"name": self.CONFIG['GLOBAL']["JOB"][self.JOB]['TRANS_MAP']}))
                 ret = r.json()
                 if isinstance(ret, dict) and ret['count'] > 0:
                     self.CONFIG['DATA_MAP'] = ret['list'][-1]['conf']
                 else:
-                    logging.error('[CONFIG ERROR] internal config update error')
+                    LOG.error('[CONFIG ERROR] internal config update error')
             except Exception as e:
-                logging.error('[CONFIG ERROR] config update error: %s' % e)
+                LOG.error('[CONFIG ERROR] config update error: %s' % e)
             time.sleep(10)
 
     def import_global_config(self, env):
@@ -56,10 +56,10 @@ class Configuration(metaclass=Singleton):
                 self.CONFIG['GLOBAL'] = ret['list'][-1]['conf']
                 # self.CONFIG['GLOBAL']['update_time'] = ret['list'][-1]['update_time']
             else:
-                logging.error('[CONFIG ERROR] global config import error')
+                LOG.error('[CONFIG ERROR] global config import error')
                 exit(-1)
         except Exception as e:
-            logging.error('[CONFIG ERROR] global config import: %s'%e)
+            LOG.error('[CONFIG ERROR] global config import: %s'%e)
             exit(-1)
 
     def import_internal_config(self, job_name):
@@ -71,10 +71,10 @@ class Configuration(metaclass=Singleton):
                 self.CONFIG['DATA_MAP'] = ret['list'][-1]['conf']
                 # self.CONFIG['DATA_MAP']['update_time'] = ret['list'][-1]['update_time']
             else:
-                logging.error('[ERROR] internal config import error')
+                LOG.error('[ERROR] internal config import error')
                 exit(-1)
         except Exception as e:
-            logging.error('[CONFIG ERROR] internal config import: %s' % e)
+            LOG.error('[CONFIG ERROR] internal config import: %s' % e)
             exit(-1)
 
     def import_demo_config(self, env):
@@ -84,7 +84,7 @@ class Configuration(metaclass=Singleton):
         self.JOB = ''
 
     def print_config(self):
-        logging.info("[ENVIRONMENT] %s\n[NAME] %s\n[JOB] %s\n[CONFIG] %s" % (self.ENV, self.NAME, self.JOB, self.CONFIG))
+        LOG.info("[ENVIRONMENT] %s\n[NAME] %s\n[JOB] %s\n[CONFIG] %s" % (self.ENV, self.NAME, self.JOB, self.CONFIG))
 
 # if __name__ == '__main__':
 #     import sys, getopt

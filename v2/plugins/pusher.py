@@ -59,65 +59,47 @@ class pusher(object):
         self._logger = Nlog()
         self._loop = None
 
-        try:
-            pull_strategy = self.config.CONFIG['GLOBAL']['JOB'][job]['PULL_STRATEGY']
-            if pull_strategy is not None:
-                pull_method = eval('self.pull_from_' + pull_strategy)
-                setattr(self, 'pull', pull_method)
-        except Exception as e:
-            raise InternalError('[pusher constructor ERROR]', e)
+        # try:
+        #     pull_strategy = self.config.CONFIG['GLOBAL']['JOB'][job]['PULL_STRATEGY']
+        #     if pull_strategy is not None:
+        #         pull_method = eval('self.pull_from_' + pull_strategy)
+        #         setattr(self, 'pull', pull_method)
+        # except Exception as e:
+        #     raise InternalError('[pusher constructor ERROR]', e)
 
     # data pull strategy
-    def pull_from_mongo(self):
-        job_config = self.config.CONFIG['GLOBAL']['JOB'][self.job]
-        mongo_instance = ConnectionFactory.get_mongo_connection(db=job_config['MONGO_DB'],  **self.config.CONFIG['GLOBAL']['MONGO'])
-        if not mongo_instance:
-            raise NetworkError("cannot connect to mongo server")
-        mongo_collection = eval('mongo_instance.db.{}'.format(job_config['MONGO_COLLECTION']))
-        # total number to process
-        count = mongo_collection.count()
-        # loop start and loop range, related to the memory consumed
-        start, step = 0, 10
-        while start < count:
-            this_loop_records = mongo_collection.find().limit(step).skip(start)
-            for i in this_loop_records:
-                yield i
-            start += step
-        mongo_instance.connection.close()
-        raise FinishedError('finished')
+    # def pull_from_mongo(self):
+    #     job_config = self.config.CONFIG['GLOBAL']['JOB'][self.job]
+    #     mongo_instance = ConnectionFactory.get_mongo_connection(db=job_config['MONGO_DB'],  **self.config.CONFIG['GLOBAL']['MONGO'])
+    #     if not mongo_instance:
+    #         raise NetworkError("cannot connect to mongo server")
+    #     mongo_collection = eval('mongo_instance.db.{}'.format(job_config['MONGO_COLLECTION']))
+    #     # total number to process
+    #     count = mongo_collection.count()
+    #     # loop start and loop range, related to the memory consumed
+    #     start, step = 0, 10
+    #     while start < count:
+    #         this_loop_records = mongo_collection.find().limit(step).skip(start)
+    #         for i in this_loop_records:
+    #             yield i
+    #         start += step
+    #     mongo_instance.connection.close()
+    #     raise FinishedError('finished')
 
-    def pull_from_redis(self):
-        push_redis_key = self.config.CONFIG['GLOBAL']['JOB'][self.job]['PUSH_REDIS_KEY']
-        redis_instance = ConnectionFactory.get_redis_connection(**self.config.CONFIG['GLOBAL']['REDIS'])
-        redis_conn = redis_instance.connection
-        if not redis_conn:
-            raise NetworkError("cannot connect to redis server")
-        while True:
-            record = redis_conn.blpop(push_redis_key, POP_TIMEOUT)
-            if record is None:
-                LOG.info('redis time out')
-                continue
-                # raise FinishedError('finished')
-            data = json.loads(record[1])
-            yield data
-
-    # def connect_mongo(self, dbname):
-    #     mongo_config = self.config.CONFIG['GLOBAL']['MONGO']
-    #     if not mongo_config or not 'host' in mongo_config or not 'port' in mongo_config or not 'user' in mongo_config or not 'password' in mongo_config:
-    #         return False
-    #     conn = pymongo.MongoClient(mongo_config['host'], int(mongo_config['port']))
-    #     db = eval("conn."+dbname)
-    #     ret = db.authenticate(mongo_config['user'], mongo_config['password'], dbname)
-    #     if False == ret:
-    #         return (conn, False)
-    #     return (conn, db)
-    #
-    # def connect_redis(self):
-    #     redis_config = self.config.CONFIG['GLOBAL']['REDIS']
-    #     if not redis_config or not 'host' in redis_config or not 'port' in redis_config or not 'db' in redis_config:
-    #         return False
-    #     connection = redis.Redis(host=redis_config['host'], port=int(redis_config['port']), db=int(redis_config['db']), password=redis_config['password'])
-    #     return connection
+    # def pull_from_redis(self):
+    #     push_redis_key = self.config.CONFIG['GLOBAL']['JOB'][self.job]['PUSH_REDIS_KEY']
+    #     redis_instance = ConnectionFactory.get_redis_connection(**self.config.CONFIG['GLOBAL']['REDIS'])
+    #     redis_conn = redis_instance.connection
+    #     if not redis_conn:
+    #         raise NetworkError("cannot connect to redis server")
+    #     while True:
+    #         record = redis_conn.blpop(push_redis_key, POP_TIMEOUT)
+    #         if record is None:
+    #             LOG.info('redis time out')
+    #             continue
+    #             # raise FinishedError('finished')
+    #         data = json.loads(record[1])
+    #         yield data
 
     def trans(self, input, map, exception_default=''):
         output = {}
@@ -142,7 +124,7 @@ class pusher(object):
             return False
 
     async def worker(self, redis_conn):
-        LOG.info('Start worker')
+        LOG.info('Start worker for job {}'.format(self.job))
         push_redis_key = self.config.CONFIG['GLOBAL']['JOB'][self.job]['PUSH_REDIS_KEY']
 
         while True:
@@ -167,11 +149,12 @@ class pusher(object):
 
         # 事件循环
         self._loop = asyncio.get_event_loop()
-        for i in range(processor_num):
-            asyncio.ensure_future(self.worker(redis_conn))
         try:
+            for i in range(processor_num):
+                asyncio.ensure_future(self.worker(redis_conn))
             self._loop.run_forever()
-        except KeyboardInterrupt as e:
+            # self._loop.run_until_complete(asyncio.gather(self.worker(redis_conn)))
+        except Exception as e:
             print(asyncio.gather(*asyncio.Task.all_tasks()).cancel())
             # loop.run_until_complete(loop.shutdown_asyncgens())
         finally:
