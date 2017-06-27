@@ -34,13 +34,15 @@ class Configuration(metaclass=Singleton):
                     self.CONFIG['GLOBAL'] = ret['list'][-1]['conf']
                 else:
                     LOG.error('[CONFIG ERROR] global config update fail')
-                # update internal config
-                r = requests.post(url=CONFIG_API[self.ENV], data=json.dumps({"name": self.CONFIG['GLOBAL']["JOB"][self.JOB]['TRANS_MAP']}))
-                ret = r.json()
-                if isinstance(ret, dict) and ret['count'] > 0:
-                    self.CONFIG['DATA_MAP'] = ret['list'][-1]['conf']
-                else:
-                    LOG.error('[CONFIG ERROR] internal config update error')
+                # # update internal config
+                # job_config = self.CONFIG['GLOBAL']["JOB"][self.JOB]
+                # if job_config.get('TRANS_MAP', None):
+                #     r = requests.post(url=CONFIG_API[self.ENV], data=json.dumps({"name": job_config['TRANS_MAP']}))
+                #     ret = r.json()
+                #     if isinstance(ret, dict) and ret['count'] > 0:
+                #         self.CONFIG['DATA_MAP'] = ret['list'][-1]['conf']
+                #     else:
+                #         LOG.error('[CONFIG ERROR] internal config update error')
             except Exception as e:
                 LOG.error('[CONFIG ERROR] config update error: %s' % e)
             time.sleep(10)
@@ -65,11 +67,13 @@ class Configuration(metaclass=Singleton):
     def import_internal_config(self, job_name):
         self.JOB = job_name
         try:
-            r = requests.post(CONFIG_API[self.ENV], data=json.dumps({"name": self.CONFIG['GLOBAL']["JOB"][job_name]['TRANS_MAP']}))
+            job_config = self.CONFIG['GLOBAL']["JOB"][job_name]
+            if not job_config.get('TRANS_MAP', None):
+                return
+            r = requests.post(CONFIG_API[self.ENV], data=json.dumps({"name": job_config['TRANS_MAP']}))
             ret = r.json()
             if isinstance(ret, dict) and ret['count']>0:
                 self.CONFIG['DATA_MAP'] = ret['list'][-1]['conf']
-                # self.CONFIG['DATA_MAP']['update_time'] = ret['list'][-1]['update_time']
             else:
                 LOG.error('[ERROR] internal config import error')
                 exit(-1)
