@@ -15,7 +15,6 @@ class Nlog(object):
 		self._ip = config.CONFIG['GLOBAL']['NLOG']['ip']
 		self._port = int(config.CONFIG['GLOBAL']['NLOG']['port'])
 
-
 	def send_api_log(self, url, post_body, result):
 		return self.send_udp_log(content='[API] '+url+' '+json.dumps(post_body)+' | '+json.dumps(result))
 
