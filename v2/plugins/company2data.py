@@ -65,12 +65,11 @@ class Company2data(pusher):
         if not document:
             return False
         url = self.config.CONFIG['GLOBAL']['API']['COMPANY_INCREMENT_API']
-        curl = Lcurl()
         data = {
             "topic": "EnterprisesIntsigInc",
             "document": document
         }
-        ret = await curl.post(session=session, url=url, data=json.dumps(data), headers={"Content-Type":"application/json"})
+        ret = await self._lcurl.post(session=session, url=url, data=json.dumps(data), headers={"Content-Type":"application/json"})
         LOG.info('upload company increment by {}, result: {}'.format(data, ret))
         if not ret:
             return False
@@ -83,12 +82,11 @@ class Company2data(pusher):
         if not document:
             return False
         url = self.config.CONFIG['GLOBAL']['API']['COMPANY_INCREMENT_API']
-        curl = Lcurl()
         data = {
             "topic": "ProductsIntsigInc",
             "document": document
         }
-        ret = await curl.post(session=session, url=url, data=json.dumps(data), headers={"Content-Type":"application/json"})
+        ret = await self._lcurl.post(session=session, url=url, data=json.dumps(data), headers={"Content-Type":"application/json"})
         LOG.info('upload product increment by {}, result: {}'.format(data, ret))
         if not ret:
             return False

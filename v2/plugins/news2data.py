@@ -32,9 +32,8 @@ class News2data(pusher):
 		if not document:
 			return False
 		url = self.config.CONFIG['GLOBAL']['API']['BUSINESS_TOPNEWS_API']
-		curl = Lcurl()
 		data = {"records":[{"value":document}]}
-		ret = await curl.post(session=session, url=url, data=json.dumps(data), headers={"Content-Type":"application/vnd.kafka.json.v1+json"}, do_log=False)
+		ret = await self._lcurl.post(session=session, url=url, data=json.dumps(data), headers={"Content-Type":"application/vnd.kafka.json.v1+json"}, do_log=False)
 		print('upload_news=========',ret)
 		# with open('data/test.log','a+') as f:
 		# 	f.write(json.dumps(ret)+"\n")

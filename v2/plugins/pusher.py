@@ -1,4 +1,5 @@
 import datetime
+import copy
 from bson import ObjectId
 from core.header import *
 from core.nlog import Nlog
@@ -51,7 +52,8 @@ class pusher(object):
         self.job = job
 
         # import data map config, such as MAP_ITORANGE
-        self.config = Configuration()
+        global_config = Configuration()
+        self.config = copy.deepcopy(global_config)
         self.config.import_internal_config(job)
         self.config.print_config()
 

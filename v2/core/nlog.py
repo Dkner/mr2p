@@ -11,9 +11,9 @@ is_py2 = sys.version[0] == '2'
 class Nlog(object):
 
 	def __init__(self):
-		config = Configuration().CONFIG['GLOBAL']
-		self._ip = config['NLOG']['ip']
-		self._port = int(config['NLOG']['port'])
+		config = Configuration()
+		self._ip = config.CONFIG['GLOBAL']['NLOG']['ip']
+		self._port = int(config.CONFIG['GLOBAL']['NLOG']['port'])
 
 
 	def send_api_log(self, url, post_body, result):

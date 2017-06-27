@@ -84,8 +84,7 @@ class Company2b(pusher):
 		if not corp_id or not post_data:
 			return False
 		url = self.config.CONFIG['GLOBAL']['API']['COMPANY_INFO_API'] + '/upload_company_extend_info_v2?type=200&scheme=yunying&company_id='+corp_id
-		curl = Lcurl()
-		ret = await curl.post(session=session, url=url, data=json.dumps(post_data))
+		ret = await self._lcurl.post(session=session, url=url, data=json.dumps(post_data))
 		if not ret:
 			return False
 		if ret['status'] == '1':
@@ -97,8 +96,7 @@ class Company2b(pusher):
 		if not corp_id or not post_data:
 			return False
 		url = self.config.CONFIG['GLOBAL']['API']['COMPANY_INFO_API'] + '/upload_product_info_v2?type=200&scheme=yunying&company_id='+corp_id
-		curl = Lcurl()
-		ret = await curl.post(session=session, url=url, data=json.dumps(post_data))
+		ret = await self._lcurl.post(session=session, url=url, data=json.dumps(post_data))
 		if not ret:
 			return False
 		if ret['status'] == '1':
