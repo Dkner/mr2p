@@ -1,5 +1,5 @@
 import sys
-sys.path.append("..")
+# sys.path.append("..")
 import getopt
 from core.configuration import Configuration
 from plugins.company2data import *
