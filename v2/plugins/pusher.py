@@ -172,14 +172,14 @@ class pusher(object):
         return True
 
     @count_second
-    def mongo2redis(self):
+    def mongo2redis(self, skip=0):
         job_config = self.config.CONFIG['GLOBAL']['JOB'][self.job]
         redis_instance = ConnectionFactory.get_redis_connection(**self.config.CONFIG['GLOBAL']['REDIS'])
         redis_conn = redis_instance.connection
         mongo_instance = ConnectionFactory.get_mongo_connection(db=job_config['MONGO_DB'], **self.config.CONFIG['GLOBAL']['MONGO'])
         mongo_collection = eval('mongo_instance.db.{}'.format(job_config['MONGO_COLLECTION']))
         count = mongo_collection.count()
-        start, step = 0, 50
+        start, step = skip, 50
         # company_set = set()
         while start < count:
             print(start)
