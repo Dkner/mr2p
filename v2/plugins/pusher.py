@@ -179,7 +179,7 @@ class pusher(object):
         mongo_instance = ConnectionFactory.get_mongo_connection(db=job_config['MONGO_DB'], **self.config.CONFIG['GLOBAL']['MONGO'])
         mongo_collection = eval('mongo_instance.db.{}'.format(job_config['MONGO_COLLECTION']))
         count = mongo_collection.count()
-        start, step = skip, 50
+        start, step = int(skip), 50
         # company_set = set()
         while start < count:
             print(start)
