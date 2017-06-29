@@ -153,7 +153,7 @@ class pusher(object):
         self._loop = asyncio.get_event_loop()
         try:
             for i in range(processor_num):
-                asyncio.ensure_future(self.worker(redis_conn))
+                asyncio.ensure_future(coro_or_future=self.worker(redis_conn), loop=self._loop)
             self._loop.run_forever()
             # self._loop.run_until_complete(asyncio.gather(self.worker(redis_conn)))
         except Exception as e:
