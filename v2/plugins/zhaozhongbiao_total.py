@@ -15,7 +15,8 @@ class Zhaozhongbiao_total(pusher):
         LOG.info('Zhaozhongbiao process {}'.format(data))
         async with aiohttp.ClientSession(loop=self._loop) as session:
             # 推送到启信宝易文斌
-            await self.update_biddings(session, data)
+            if data.get('last_update') and int(data['last_update']) > 1477929600:
+                await self.update_biddings(session, data)
 
     async def update_biddings(self, session, document):
         if not document:
