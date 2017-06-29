@@ -143,11 +143,12 @@ class pusher(object):
                 pass
 
     def run(self):
-        redis_instance = ConnectionFactory.get_redis_connection(**self.config.CONFIG['GLOBAL']['REDIS'])
+        task_config = self.config.CONFIG['GLOBAL']['JOB'][self.job]
+        redis_schema = task_config.get('REDIS_SCHEMA', 'DEFAULT')
+        redis_instance = ConnectionFactory.get_redis_connection(**self.config.CONFIG['GLOBAL']['REDIS'][redis_schema])
         redis_conn = redis_instance.connection
         if not redis_conn: raise NetworkError("cannot connect to redis server")
-        task_config = self.config.CONFIG['GLOBAL']['JOB']
-        processor_num = int(task_config[self.job].get('PROCESSOR_NUM', 1))
+        processor_num = int(task_config.get('PROCESSOR_NUM', 1))
 
         # 事件循环
         self._loop = asyncio.get_event_loop()
@@ -174,9 +175,12 @@ class pusher(object):
     @count_second
     def mongo2redis(self, skip=0):
         job_config = self.config.CONFIG['GLOBAL']['JOB'][self.job]
-        redis_instance = ConnectionFactory.get_redis_connection(**self.config.CONFIG['GLOBAL']['REDIS'])
+        redis_schema = job_config.get('REDIS_SCHEMA', 'DEFAULT')
+        redis_instance = ConnectionFactory.get_redis_connection(**self.config.CONFIG['GLOBAL']['REDIS'][redis_schema])
         redis_conn = redis_instance.connection
-        mongo_instance = ConnectionFactory.get_mongo_connection(db=job_config['MONGO_DB'], **self.config.CONFIG['GLOBAL']['MONGO'])
+
+        mongo_schema = job_config.get('MONGO_SCHEMA', 'DEFAULT')
+        mongo_instance = ConnectionFactory.get_mongo_connection(db=job_config['MONGO_DB'], **self.config.CONFIG['GLOBAL']['MONGO'][mongo_schema])
         mongo_collection = eval('mongo_instance.db.{}'.format(job_config['MONGO_COLLECTION']))
         count = mongo_collection.count()
         start, step = int(skip), 50
@@ -194,7 +198,8 @@ class pusher(object):
         mongo_instance.connection.close()
 
     def stat_by_redis(self, ret):
-        redis_instance = ConnectionFactory.get_redis_connection(**self.config.CONFIG['GLOBAL']['REDIS'])
+        redis_schema = self.config.CONFIG['GLOBAL']['JOB'][self.job].get('REDIS_SCHEMA', 'DEFAULT')
+        redis_instance = ConnectionFactory.get_redis_connection(**self.config.CONFIG['GLOBAL']['REDIS'][redis_schema])
         redis_conn = redis_instance.connection
         if not redis_conn:
             LOG.error("cannot connect to redis server")
@@ -227,7 +232,8 @@ class pusher(object):
         if not ret or not isinstance(data, dict) or not '_id' in data:
             return False
         job_config = self.config.CONFIG['GLOBAL']['JOB'][self.job]
-        mongo_instance = ConnectionFactory.get_mongo_connection(db=job_config['MONGO_DB'], **self.config.CONFIG['GLOBAL']['MONGO'])
+        mongo_schema = job_config.get('MONGO_SCHEMA', 'DEFAULT')
+        mongo_instance = ConnectionFactory.get_mongo_connection(db=job_config['MONGO_DB'], **self.config.CONFIG['GLOBAL']['MONGO'][mongo_schema])
         mongo_collection = eval('mongo_instance.db.{}'.format(job_config['MONGO_COLLECTION']))
         ret = mongo_collection.update_one({'_id': ObjectId(data['_id'])}, {"$set": {flag_name: 1}})
         mongo_instance.connection.close()
