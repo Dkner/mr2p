@@ -1,11 +1,11 @@
 import json
 import time
 from plugins.pusher import pusher
-from core.lcurl import Lcurl
 from core.logger import LOG
 from utils.tool import Tool
 import asyncio
 import aiohttp
+
 
 class Zhaozhongbiao(pusher):
     def __init__(self, job):
@@ -14,8 +14,17 @@ class Zhaozhongbiao(pusher):
     async def process(self, data):
         LOG.info('Zhaozhongbiao process {}'.format(data))
         async with aiohttp.ClientSession(loop=self._loop) as session:
-            data.pop('_id')
+            # 推送web seo到林雨森
+            await self.synchronizeWeb(session, data)
+            # 推送到启信宝易文斌
             await self.update_biddings(session, data)
+            # 组装数据推送ccpush信息流
+            target = await self.load_msg_target(session, data)
+            await self.add_ccinfo_msg_target(session, target)
+
+    def init_verify_code(self, rec_id, timestamp):
+        src_code = 'IS@SHWJC_' + rec_id + '_' + str(timestamp)
+        return Tool.md5(src_code)
 
     async def update_biddings(self, session, document):
         if not document:
@@ -33,3 +42,87 @@ class Zhaozhongbiao(pusher):
             return True
         else:
             return False
+
+    async def synchronizeWeb(self, session, data):
+        post = [{
+            'info_id': str(data['_id']),
+            'issue_time': data['last_update']
+        }]
+        ret = await self._lcurl.post(session, self.config.CONFIG['GLOBAL']['API']['WEB_API'] + "/seo/multiaddbidid", json.dumps(post))
+        LOG.info('web seo result: {}'.format(ret))
+
+    async def load_msg_target(self, session, data):
+        push_corp_name, push_corp_id = None, None
+        send_corps, tmp_related_corps, related_corps, related_corp_ids = [], [], [], []
+        if data.has_key("related_corps"):
+            tmp_related_corps.extend(data['related_corps'])
+        if "中标信息" == data['notice_type']:
+            template_name = 'info_zhongbiao_new_v2'
+            if data.has_key("result_corps") and not 0 == len(data["result_corps"]):
+                for corp in data['result_corps']:
+                    if ',' in corp:
+                        tmp_corps = corp.split(',')
+                        send_corps.extend(tmp_corps)
+                    else:
+                        send_corps.append(corp)
+        elif "招标信息" == data['notice_type']:
+            template_name = 'info_zhaobiao_new_v2'
+            if data.has_key("tender_corp") and not 0 == len(data['tender_corp']):
+                if ',' in data['tender_corp']:
+                    tmp_corps = data['tender_corp'].split(',')
+                    send_corps.extend(tmp_corps)
+                else:
+                    send_corps.append(data['tender_corp'])
+            if data.has_key("tender_agent") and not 0 == len(data['tender_agent']):
+                if ',' in data['tender_agent']:
+                    tmp_corps = data['tender_agent'].split(',')
+                    send_corps.extend(tmp_corps)
+                else:
+                    send_corps.append(data['tender_agent'])
+        else:
+            return
+        if 0 == len(send_corps):
+            return
+        for corp in send_corps:
+            if corp in tmp_related_corps:
+                tmp_related_corps.remove(corp)
+            corp_summary = await self.getSummaryByName(session, corp)
+            corp_id = corp_summary.get('_id')
+            if corp_id:
+                if not push_corp_id:
+                    push_corp_name = corp
+                    push_corp_id = corp_id
+                else:
+                    related_corps.append(corp)
+                    related_corp_ids.append(corp_id)
+        if push_corp_name is None or push_corp_id is None:
+            return
+        for corp in tmp_related_corps:
+            corp_summary = await self.getSummaryByName(session, corp)
+            corp_id = corp_summary.get('_id')
+            if corp_id:
+                related_corps.append(corp)
+                related_corp_ids.append(corp_id)
+        related_corp_id_list = ','.join(related_corp_ids)
+        related_corp_name_list = ','.join(related_corps)
+        timestamp = int(time.time())
+        post = {
+            "template_name": template_name,
+            "token_param": json.dumps({
+                "%corp_id%": push_corp_id,
+                "%corp_name%": push_corp_name,
+                "%link.title%": data['title'],
+                "%link.url%": "{}/personal/zhaobiao?rec_id={}&ts={}&verify_code={}".format(
+                    self.config.CONFIG['GLOBAL']['API']['WEB_M_API'], data['_id'], str(timestamp),
+                    self.init_verify_code(data['_id'], timestamp))
+            }),
+            "msg_param": json.dumps({
+                "nace_code": data['nace_code'],
+                "area_code": data['area_code'],
+                "related_corp_ids": related_corp_id_list,
+                "related_corp_names": related_corp_name_list
+            }),
+            "src_id": data['_id'],
+            "src_channel": "spider"
+        }
+        return post

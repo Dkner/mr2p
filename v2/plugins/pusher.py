@@ -266,7 +266,7 @@ class pusher(object):
         ret = await self._lcurl.get(session, url, url_param)
         if not ret:
             return False
-        if ret['status'] == '1':
+        if str(ret['status']) == '1':
             return ret['data']
         else:
             return False
@@ -296,6 +296,14 @@ class pusher(object):
         if len>0 and ret:
             ret = ret[:len]
         return ret
+
+    async def add_ccinfo_msg_target(self, session, document):
+        url = self.config.CONFIG['GLOBAL']['API']['YUNYING_PUSH_API']
+        ret = await self._lcurl.post(session, url, data=json.dumps(document))
+        if ret and str(ret['errno']) == '0':
+            return True
+        else:
+            return False
     '''
         api func end
     '''

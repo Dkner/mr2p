@@ -1,7 +1,6 @@
 import json
 import time
 from plugins.pusher import pusher, stat, write_back
-from core.lcurl import Lcurl
 from core.logger import LOG
 import asyncio
 import aiohttp
