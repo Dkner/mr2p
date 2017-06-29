@@ -299,7 +299,7 @@ class pusher(object):
         return ret
 
     async def add_ccinfo_msg_target(self, session, document):
-        url = self.config.CONFIG['GLOBAL']['API']['YUNYING_PUSH_API']
+        url = self.config.CONFIG['GLOBAL']['API']['YUNYING_PUSH_API'] + '/push/add_ccinfo_msg_target'
         ret = await self._lcurl.post(session, url, data=json.dumps(document))
         LOG.info('add ccinfo msg target by {}, result: {}'.format(document, ret))
         if ret and str(ret['errno']) == '0':

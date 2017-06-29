@@ -1,6 +1,5 @@
 import json
 from plugins.pusher import pusher, stat, write_back
-from core.lcurl import Lcurl
 import aiohttp
 
 
