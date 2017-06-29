@@ -54,11 +54,11 @@ class Zhaozhongbiao(pusher):
     async def load_msg_target(self, session, data):
         push_corp_name, push_corp_id = None, None
         send_corps, tmp_related_corps, related_corps, related_corp_ids = [], [], [], []
-        if data.has_key("related_corps"):
+        if "related_corps" in data:
             tmp_related_corps.extend(data['related_corps'])
         if "中标信息" == data['notice_type']:
             template_name = 'info_zhongbiao_new_v2'
-            if data.has_key("result_corps") and not 0 == len(data["result_corps"]):
+            if "result_corps" in data and not 0 == len(data["result_corps"]):
                 for corp in data['result_corps']:
                     if ',' in corp:
                         tmp_corps = corp.split(',')
@@ -67,13 +67,13 @@ class Zhaozhongbiao(pusher):
                         send_corps.append(corp)
         elif "招标信息" == data['notice_type']:
             template_name = 'info_zhaobiao_new_v2'
-            if data.has_key("tender_corp") and not 0 == len(data['tender_corp']):
+            if "tender_corp" in data and not 0 == len(data['tender_corp']):
                 if ',' in data['tender_corp']:
                     tmp_corps = data['tender_corp'].split(',')
                     send_corps.extend(tmp_corps)
                 else:
                     send_corps.append(data['tender_corp'])
-            if data.has_key("tender_agent") and not 0 == len(data['tender_agent']):
+            if "tender_agent" in data and not 0 == len(data['tender_agent']):
                 if ',' in data['tender_agent']:
                     tmp_corps = data['tender_agent'].split(',')
                     send_corps.extend(tmp_corps)
@@ -87,22 +87,20 @@ class Zhaozhongbiao(pusher):
             if corp in tmp_related_corps:
                 tmp_related_corps.remove(corp)
             corp_summary = await self.getSummaryByName(session, corp)
-            corp_id = corp_summary.get('_id')
-            if corp_id:
+            if corp_summary and corp_summary.get('_id'):
                 if not push_corp_id:
                     push_corp_name = corp
-                    push_corp_id = corp_id
+                    push_corp_id = corp_summary.get('_id')
                 else:
                     related_corps.append(corp)
-                    related_corp_ids.append(corp_id)
+                    related_corp_ids.append(corp_summary.get('_id'))
         if push_corp_name is None or push_corp_id is None:
             return
         for corp in tmp_related_corps:
             corp_summary = await self.getSummaryByName(session, corp)
-            corp_id = corp_summary.get('_id')
-            if corp_id:
+            if corp_summary and corp_summary.get('_id'):
                 related_corps.append(corp)
-                related_corp_ids.append(corp_id)
+                related_corp_ids.append(corp_summary.get('_id'))
         related_corp_id_list = ','.join(related_corp_ids)
         related_corp_name_list = ','.join(related_corps)
         timestamp = int(time.time())
