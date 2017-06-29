@@ -264,6 +264,7 @@ class pusher(object):
             'name': name
         }
         ret = await self._lcurl.get(session, url, url_param)
+        LOG.info('get corp summary by name[{}]...result: {}'.format(name, ret))
         if not ret:
             return False
         if str(ret['status']) == '1':
@@ -300,6 +301,7 @@ class pusher(object):
     async def add_ccinfo_msg_target(self, session, document):
         url = self.config.CONFIG['GLOBAL']['API']['YUNYING_PUSH_API']
         ret = await self._lcurl.post(session, url, data=json.dumps(document))
+        LOG.info('add ccinfo msg target by {}, result: {}'.format(document, ret))
         if ret and str(ret['errno']) == '0':
             return True
         else:
