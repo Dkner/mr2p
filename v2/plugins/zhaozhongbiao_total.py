@@ -12,7 +12,7 @@ class Zhaozhongbiao_total(pusher):
         super().__init__(job=job)
 
     async def process(self, data):
-        LOG.info('Zhaozhongbiao process {}'.format(data))
+        LOG.info('{} process {}'.format(self.job, data))
         async with aiohttp.ClientSession(loop=self._loop) as session:
             # 推送到启信宝易文斌
             if data.get('last_update') and int(data['last_update']) > 1477929600:

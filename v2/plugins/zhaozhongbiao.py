@@ -12,7 +12,7 @@ class Zhaozhongbiao(pusher):
         super().__init__(job=job)
 
     async def process(self, data):
-        LOG.info('Zhaozhongbiao process {}'.format(data))
+        LOG.info('{} process {}'.format(self.job, data))
         async with aiohttp.ClientSession(loop=self._loop) as session:
             # 推送web seo到林雨森
             await self.synchronizeWeb(session, data)

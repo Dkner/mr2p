@@ -40,7 +40,7 @@ class Company2data(pusher):
     @stat
     @write_back('2data_pushed')
     async def process(self, data):
-        LOG.info('company2data process {}'.format(data))
+        LOG.info('company2data [{}] process {}'.format(self.job, data))
         config = self.config
         if config.ENV == 'DEV':
             return True
