@@ -9,8 +9,9 @@ from core.configuration import Configuration
 import asyncio
 from core.connection_factory import ConnectionFactory
 from core.logger import LOG
+import threading
+from queue import Queue
 
-POP_TIMEOUT = 60
 
 # monitor
 def stat(func):
@@ -21,6 +22,7 @@ def stat(func):
         self.stat_by_redis(ret)
         return ret
     return wrapper
+
 
 # write back push flag
 def write_back(flag_name):
@@ -36,6 +38,7 @@ def write_back(flag_name):
         return wrapper
     return decorator
 
+
 def count_second(func):
     def wrapper(*args, **kw):
         t1 = int(time.time())
@@ -45,7 +48,7 @@ def count_second(func):
     return wrapper
 
 
-class pusher(object):
+class Pusher(object):
     def __init__(self, job):
         # unique job name
         self.job = job
@@ -59,47 +62,8 @@ class pusher(object):
         self._lcurl = Lcurl()
         self._loop = None
 
-        # try:
-        #     pull_strategy = self.config.CONFIG['GLOBAL']['JOB'][job]['PULL_STRATEGY']
-        #     if pull_strategy is not None:
-        #         pull_method = eval('self.pull_from_' + pull_strategy)
-        #         setattr(self, 'pull', pull_method)
-        # except Exception as e:
-        #     raise InternalError('[pusher constructor ERROR]', e)
-
-    # data pull strategy
-    # def pull_from_mongo(self):
-    #     job_config = self.config.CONFIG['GLOBAL']['JOB'][self.job]
-    #     mongo_instance = ConnectionFactory.get_mongo_connection(db=job_config['MONGO_DB'],  **self.config.CONFIG['GLOBAL']['MONGO'])
-    #     if not mongo_instance:
-    #         raise NetworkError("cannot connect to mongo server")
-    #     mongo_collection = eval('mongo_instance.db.{}'.format(job_config['MONGO_COLLECTION']))
-    #     # total number to process
-    #     count = mongo_collection.count()
-    #     # loop start and loop range, related to the memory consumed
-    #     start, step = 0, 10
-    #     while start < count:
-    #         this_loop_records = mongo_collection.find().limit(step).skip(start)
-    #         for i in this_loop_records:
-    #             yield i
-    #         start += step
-    #     mongo_instance.connection.close()
-    #     raise FinishedError('finished')
-
-    # def pull_from_redis(self):
-    #     push_redis_key = self.config.CONFIG['GLOBAL']['JOB'][self.job]['PUSH_REDIS_KEY']
-    #     redis_instance = ConnectionFactory.get_redis_connection(**self.config.CONFIG['GLOBAL']['REDIS'])
-    #     redis_conn = redis_instance.connection
-    #     if not redis_conn:
-    #         raise NetworkError("cannot connect to redis server")
-    #     while True:
-    #         record = redis_conn.blpop(push_redis_key, POP_TIMEOUT)
-    #         if record is None:
-    #             LOG.info('redis time out')
-    #             continue
-    #             # raise FinishedError('finished')
-    #         data = json.loads(record[1])
-    #         yield data
+        self.__message_producer = None
+        self.__message_consumer = None
 
     def trans(self, input, map, exception_default=''):
         output = {}
@@ -123,44 +87,66 @@ class pusher(object):
             LOG.error(e)
             return False
 
-    async def worker(self, redis_conn):
+    async def worker(self, message_queue):
         LOG.info('Start worker for job {}'.format(self.job))
-        push_redis_key = self.config.CONFIG['GLOBAL']['JOB'][self.job]['PUSH_REDIS_KEY']
 
         while True:
-            record = redis_conn.lpop(push_redis_key)
+            record = message_queue.get()
             if record is None:
                 await asyncio.sleep(1)
                 continue
-            data = json.loads(record.decode('utf-8'))
             try:
+                data = json.loads(record.decode('utf-8'))
                 await self.process(data)
             except Exception as e:
                 LOG.error('Error during data processing: %s' % e)
             finally:
                 pass
 
-    def run(self):
+    def get_message(self, message_queue):
+        LOG.info('Start message producer for job {}'.format(self.job))
         task_config = self.config.CONFIG['GLOBAL']['JOB'][self.job]
         redis_schema = task_config.get('REDIS_SCHEMA', 'DEFAULT')
         redis_instance = ConnectionFactory.get_redis_connection(**self.config.CONFIG['GLOBAL']['REDIS'][redis_schema])
         redis_conn = redis_instance.connection
         if not redis_conn: raise NetworkError("cannot connect to redis server")
+
+        while True:
+            if message_queue.qsize() < 10:
+                record = redis_conn.lpop(task_config['PUSH_REDIS_KEY'])
+                LOG.info('put message into queue: {}'.format(record))
+                message_queue.put(record)
+            else:
+                LOG.info('too busy, have a rest...')
+                time.sleep(1)
+
+    def process_message(self, message_queue):
+        LOG.info('Start message consumer for job {}'.format(self.job))
+        task_config = self.config.CONFIG['GLOBAL']['JOB'][self.job]
         processor_num = int(task_config.get('PROCESSOR_NUM', 1))
 
         # 事件循环
-        self._loop = asyncio.get_event_loop()
+        self._loop = asyncio.new_event_loop()
         try:
             for i in range(processor_num):
-                asyncio.ensure_future(coro_or_future=self.worker(redis_conn), loop=self._loop)
+                asyncio.ensure_future(coro_or_future=self.worker(message_queue), loop=self._loop)
             self._loop.run_forever()
             # self._loop.run_until_complete(asyncio.gather(self.worker(redis_conn)))
         except Exception as e:
-            print(asyncio.gather(*asyncio.Task.all_tasks()).cancel())
-            # loop.run_until_complete(loop.shutdown_asyncgens())
+            print(asyncio.gather(*asyncio.Task.all_tasks()).cancel(), loop=self._loop)
+            # self._loop.run_until_complete(self._loop.shutdown_asyncgens())
         finally:
             self._loop.close()
 
+    def run(self):
+        message_queue = Queue()
+        self.__message_producer = threading.Thread(target=self.get_message, args=(message_queue,), daemon=True)
+        self.__message_producer.start()
+        self.__message_consumer = threading.Thread(target=self.process_message, args=(message_queue,), daemon=True)
+        self.__message_consumer.start()
+
+        self.__message_producer.join()
+        self.__message_consumer.join()
 
     # replaced by pull_from_xxx
     def pull(self):
