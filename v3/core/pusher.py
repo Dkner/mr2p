@@ -91,7 +91,7 @@ class Pusher(object):
         LOG.info('Start worker for job {}'.format(self.job))
 
         while True:
-            record = message_queue.get()
+            record = message_queue.get(block=False)
             if record is None:
                 await asyncio.sleep(1)
                 continue
@@ -113,7 +113,7 @@ class Pusher(object):
 
         while True:
             if message_queue.qsize() < 10:
-                record = redis_conn.lpop(task_config['PUSH_REDIS_KEY'])
+                record = redis_conn.blpop(task_config['PUSH_REDIS_KEY'])
                 LOG.info('put message into queue: {}'.format(record))
                 message_queue.put(record)
             else:
