@@ -92,12 +92,11 @@ class Pusher(object):
 
         while True:
             try:
-                record = message_queue.get(block=False)
+                data = message_queue.get(block=False)
             except Empty:
                 await asyncio.sleep(1)
                 continue
             try:
-                data = json.loads(record.decode('utf-8'))
                 if data:
                     await self.process(data)
             except Exception as e:
@@ -116,8 +115,10 @@ class Pusher(object):
         while True:
             if message_queue.qsize() < 10:
                 record = redis_conn.blpop(task_config['PUSH_REDIS_KEY'])
-                LOG.info('put message into queue: {}'.format(record))
-                message_queue.put(record)
+                if record:
+                    LOG.info('put message into queue: {}'.format(record))
+                    data = json.loads(record[1].decode('utf-8'))
+                    message_queue.put(data)
             else:
                 LOG.info('too busy, have a rest...')
                 time.sleep(1)
