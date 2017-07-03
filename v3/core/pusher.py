@@ -10,7 +10,7 @@ import asyncio
 from core.connection_factory import ConnectionFactory
 from core.logger import LOG
 import threading
-from queue import Queue
+from queue import Queue, Empty
 
 
 # monitor
@@ -91,13 +91,15 @@ class Pusher(object):
         LOG.info('Start worker for job {}'.format(self.job))
 
         while True:
-            record = message_queue.get(block=False)
-            if record is None:
+            try:
+                record = message_queue.get(block=False)
+            except Empty:
                 await asyncio.sleep(1)
                 continue
             try:
                 data = json.loads(record.decode('utf-8'))
-                await self.process(data)
+                if data:
+                    await self.process(data)
             except Exception as e:
                 LOG.error('Error during data processing: %s' % e)
             finally:
