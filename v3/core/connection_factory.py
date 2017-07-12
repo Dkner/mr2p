@@ -5,21 +5,43 @@ from utils.cached import Cached
 
 class RedisConnection(metaclass=Cached):
     def __init__(self, host, port, db, password):
-        self.connection = redis.Redis(host, port, db, password)
-        if not self.connection.ping():
-            self.connection = False
+        self.host = host
+        self.port = port
+        self.db = db
+        self.password = password
+        self.connection = None
+
+    def __enter__(self):
+        if not self.connection or not self.connection.ping():
+            self.connection = redis.Redis(self.host, self.port, self.db, self.password)
+        return self.connection
+
+    def __exit__(self, exc_type, exc_val, exc_tb):
+        pass
 
 
 class MongoConnection(metaclass=Cached):
     def __init__(self, host, port, db, user, password):
-        self.connection = pymongo.MongoClient(host, port)
-        db_eval_str = "self.connection.{}".format(db)
-        database = eval(db_eval_str)
-        auth_ret = database.authenticate(user, password, db)
-        if not auth_ret:
-            self.db = False
-        else:
-            self.db = database
+        self.host = host
+        self.port = port
+        self.db = db
+        self.user = user
+        self.password = password
+        self.connection = None
+        self.database = None
+
+    def __enter__(self):
+        if not self.connection:
+            self.connection = pymongo.MongoClient(self.host, self.port)
+            db_eval_str = "self.connection.{}".format(self.db)
+            self.database = eval(db_eval_str)
+            auth_ret = self.database.authenticate(self.user, self.password, self.db)
+            if not auth_ret:
+                raise RuntimeError('connect mongo fail')
+        return self.database
+
+    def __exit__(self, exc_type, exc_val, exc_tb):
+        self.connection.close()
 
 
 class ConnectionFactory(object):
