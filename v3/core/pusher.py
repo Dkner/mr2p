@@ -98,7 +98,8 @@ class Pusher(object):
                 continue
             try:
                 if data:
-                    await self.process(data)
+                    future = await self.process(data)
+
             except Exception as e:
                 LOG.error('Error during data processing: %s' % e)
             finally:
@@ -127,19 +128,17 @@ class Pusher(object):
         task_config = self.config.CONFIG['GLOBAL']['JOB'][self.job]
         redis_schema = task_config.get('REDIS_SCHEMA', 'DEFAULT')
         redis_instance = ConnectionFactory.get_redis_connection(**self.config.CONFIG['GLOBAL']['REDIS'][redis_schema])
-        redis_conn = redis_instance.connection
-        if not redis_conn: raise NetworkError("cannot connect to redis server")
-
-        while True:
-            if message_queue.qsize() < 10:
-                record = redis_conn.blpop(task_config['PUSH_REDIS_KEY'])
-                if record:
-                    LOG.info('put message into queue: {}'.format(record))
-                    data = json.loads(record[1].decode('utf-8'))
-                    message_queue.put(data)
-            else:
-                LOG.info('too busy, have a rest...')
-                time.sleep(1)
+        with redis_instance as redis_conn:
+            while True:
+                if message_queue.qsize() < 10:
+                    record = redis_conn.blpop(task_config['PUSH_REDIS_KEY'])
+                    if record:
+                        LOG.info('put message into queue: {}'.format(record))
+                        data = json.loads(record[1].decode('utf-8'))
+                        message_queue.put(data)
+                else:
+                    LOG.info('too busy, have a rest...')
+                    time.sleep(1)
 
     def run(self):
         message_queue = Queue()
@@ -164,56 +163,51 @@ class Pusher(object):
         job_config = self.config.CONFIG['GLOBAL']['JOB'][self.job]
         redis_schema = job_config.get('REDIS_SCHEMA', 'DEFAULT')
         redis_instance = ConnectionFactory.get_redis_connection(**self.config.CONFIG['GLOBAL']['REDIS'][redis_schema])
-        redis_conn = redis_instance.connection
-
-        mongo_schema = job_config.get('MONGO_SCHEMA', 'DEFAULT')
-        mongo_instance = ConnectionFactory.get_mongo_connection(db=job_config['MONGO_DB'], **self.config.CONFIG['GLOBAL']['MONGO'][mongo_schema])
-        mongo_collection = eval('mongo_instance.db.{}'.format(job_config['MONGO_COLLECTION']))
-        count = mongo_collection.count()
-        start, step = int(skip), 50
-        # company_set = set()
-        while start < count:
-            print(start)
-            this_loop_records = mongo_collection.find().limit(step).skip(start)
-            for i in this_loop_records:
-                i['_id'] = str(i['_id'])
-                # if i.get('company_name','') and i['company_name'] not in company_set:
-                # if i.get('company_name',''):
-                    # company_set.add(i['company_name'])
-                redis_conn.rpush(job_config['PUSH_REDIS_KEY'], json.dumps(i))
-            start += step
-        mongo_instance.connection.close()
+        with redis_instance as redis_conn:
+            mongo_schema = job_config.get('MONGO_SCHEMA', 'DEFAULT')
+            mongo_instance = ConnectionFactory.get_mongo_connection(db=job_config['MONGO_DB'], **self.config.CONFIG['GLOBAL']['MONGO'][mongo_schema])
+            with mongo_instance as db:
+                mongo_collection = eval('db.{}'.format(job_config['MONGO_COLLECTION']))
+                count = mongo_collection.count()
+                start, step = int(skip), 50
+                # company_set = set()
+                while start < count:
+                    print(start)
+                    this_loop_records = mongo_collection.find().limit(step).skip(start)
+                    for i in this_loop_records:
+                        i['_id'] = str(i['_id'])
+                        # if i.get('company_name','') and i['company_name'] not in company_set:
+                        # if i.get('company_name',''):
+                            # company_set.add(i['company_name'])
+                        redis_conn.rpush(job_config['PUSH_REDIS_KEY'], json.dumps(i))
+                    start += step
 
     def stat_by_redis(self, ret):
         redis_schema = self.config.CONFIG['GLOBAL']['JOB'][self.job].get('REDIS_SCHEMA', 'DEFAULT')
         redis_instance = ConnectionFactory.get_redis_connection(**self.config.CONFIG['GLOBAL']['REDIS'][redis_schema])
-        redis_conn = redis_instance.connection
-        if not redis_conn:
-            LOG.error("cannot connect to redis server")
-            return False
-        push_redis_key = self.config.CONFIG['GLOBAL']['JOB'][self.job]['PUSH_REDIS_KEY']
-        stat_key = push_redis_key + '_stat_' + datetime.datetime.now().strftime("%Y-%m-%d")
-        is_existed = redis_conn.hgetall(stat_key)
-        if is_existed:
-            if ret:
-                redis_conn.hincrby(stat_key, "success", 1)
+        with redis_instance as redis_conn:
+            push_redis_key = self.config.CONFIG['GLOBAL']['JOB'][self.job]['PUSH_REDIS_KEY']
+            stat_key = push_redis_key + '_stat_' + datetime.datetime.now().strftime("%Y-%m-%d")
+            is_existed = redis_conn.hgetall(stat_key)
+            if is_existed:
+                if ret:
+                    redis_conn.hincrby(stat_key, "success", 1)
+                else:
+                    redis_conn.hincrby(stat_key, "fail", 1)
+                redis_conn.hset(stat_key, "last_push", int(time.time()))
             else:
-                redis_conn.hincrby(stat_key, "fail", 1)
-            redis_conn.hset(stat_key, "last_push", int(time.time()))
-        else:
-            stat_map = {
-                "project": self.config.NAME,
-                "task": self.job,
-                "success": 0,
-                "fail": 0,
-                "last_push": int(time.time())
-            }
-            if ret:
-                stat_map['success'] = 1
-            else:
-                stat_map['fail'] = 1
-            redis_conn.hmset(stat_key, stat_map)
-        return True
+                stat_map = {
+                    "project": self.config.NAME,
+                    "task": self.job,
+                    "success": 0,
+                    "fail": 0,
+                    "last_push": int(time.time())
+                }
+                if ret:
+                    stat_map['success'] = 1
+                else:
+                    stat_map['fail'] = 1
+                redis_conn.hmset(stat_key, stat_map)
 
     def write_back_mongo(self, ret, data, flag_name):
         if not ret or not isinstance(data, dict) or not '_id' in data:
@@ -221,10 +215,10 @@ class Pusher(object):
         job_config = self.config.CONFIG['GLOBAL']['JOB'][self.job]
         mongo_schema = job_config.get('MONGO_SCHEMA', 'DEFAULT')
         mongo_instance = ConnectionFactory.get_mongo_connection(db=job_config['MONGO_DB'], **self.config.CONFIG['GLOBAL']['MONGO'][mongo_schema])
-        mongo_collection = eval('mongo_instance.db.{}'.format(job_config['MONGO_COLLECTION']))
-        ret = mongo_collection.update_one({'_id': ObjectId(data['_id'])}, {"$set": {flag_name: 1}})
-        mongo_instance.connection.close()
-        return ret
+        with mongo_instance as db:
+            mongo_collection = eval('db.{}'.format(job_config['MONGO_COLLECTION']))
+            ret = mongo_collection.update_one({'_id': ObjectId(data['_id'])}, {"$set": {flag_name: 1}})
+            return ret
 
     '''
         api func start
