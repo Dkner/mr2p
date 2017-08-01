@@ -104,6 +104,24 @@ class Pusher(object):
             finally:
                 pass
 
+    def process_message(self, message_queue):
+        LOG.info('Start message consumer for job {}'.format(self.job))
+        task_config = self.config.CONFIG['GLOBAL']['JOB'][self.job]
+        processor_num = int(task_config.get('PROCESSOR_NUM', 1))
+
+        # 事件循环
+        self._loop = asyncio.new_event_loop()
+        try:
+            for i in range(processor_num):
+                asyncio.ensure_future(coro_or_future=self.worker(message_queue), loop=self._loop)
+            self._loop.run_forever()
+            # self._loop.run_until_complete(asyncio.gather(self.worker(redis_conn)))
+        except Exception as e:
+            print(asyncio.gather(*asyncio.Task.all_tasks()).cancel(), loop=self._loop)
+            # self._loop.run_until_complete(self._loop.shutdown_asyncgens())
+        finally:
+            self._loop.close()
+
     def get_message(self, message_queue):
         LOG.info('Start message producer for job {}'.format(self.job))
         task_config = self.config.CONFIG['GLOBAL']['JOB'][self.job]
@@ -123,24 +141,6 @@ class Pusher(object):
                 LOG.info('too busy, have a rest...')
                 time.sleep(1)
 
-    def process_message(self, message_queue):
-        LOG.info('Start message consumer for job {}'.format(self.job))
-        task_config = self.config.CONFIG['GLOBAL']['JOB'][self.job]
-        processor_num = int(task_config.get('PROCESSOR_NUM', 1))
-
-        # 事件循环
-        self._loop = asyncio.new_event_loop()
-        try:
-            for i in range(processor_num):
-                asyncio.ensure_future(coro_or_future=self.worker(message_queue), loop=self._loop)
-            self._loop.run_forever()
-            # self._loop.run_until_complete(asyncio.gather(self.worker(redis_conn)))
-        except Exception as e:
-            print(asyncio.gather(*asyncio.Task.all_tasks()).cancel(), loop=self._loop)
-            # self._loop.run_until_complete(self._loop.shutdown_asyncgens())
-        finally:
-            self._loop.close()
-
     def run(self):
         message_queue = Queue()
         self.__message_producer = threading.Thread(target=self.get_message, args=(message_queue,), daemon=True)
@@ -157,7 +157,7 @@ class Pusher(object):
 
     # extended by son object
     def process(self, event):
-        return True
+        raise NotImplementedError
 
     @count_second
     def mongo2redis(self, skip=0):
